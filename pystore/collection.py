@@ -149,7 +149,7 @@ class Collection(object):
             self._list_items_threaded()
 
     def append(self, item, data, npartitions=None, epochdate=False,
-               threaded=False, reload_items=False, **kwargs):
+               threaded=False, reload_items=False, force_unique_index = True, **kwargs):
 
         if not utils.path_exists(self._item_path(item)):
             raise ValueError(
@@ -176,9 +176,18 @@ class Collection(object):
             data.index.name = "index"
 
         # combine old dataframe with new
+        #Work around from https://github.com/ranaroussi/pystore/issues/43
         current = self.item(item)
         new = dd.from_pandas(data, npartitions=1)
-        combined = dd.concat([current.data, new]).drop_duplicates(keep="last")
+        #combined = dd.concat([current.data, new]).drop_duplicates(keep="last")
+        combined = dd.concat([current.data, new])
+
+        idx_name = combined.index.name
+        if force_unique_index:
+            subset = idx_name
+        else:
+            subset = None
+        combined = combined.reset_index().drop_duplicates(subset=subset, keep="last").set_index(idx_name)
 
         if npartitions is None:
             memusage = combined.memory_usage(deep=True).sum()
